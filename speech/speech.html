@@ -1,0 +1,401 @@
+<!doctype html> 
+<html> 
+    <head> 
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+    <title>Say what?! - An HTML5 speech game</title> 
+ 
+    <style> 
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: arial;  
+      }
+      #header {
+        background-color: #eee;
+        text-align: center;
+        padding: 2px 0 20px 0; 
+        margin: 0 0 10px 0; 
+      }
+      #header h1 {
+        padding: 10px 0 10px 0;
+        margin: 0;
+      }
+      #header #about {
+        font-size: 10px;
+        displa_y: none;  
+        margin: auto;
+        width: 700px; 
+      }
+      #content {
+        margin: auto;
+        padding: 20px;
+        width: 700px;
+        border: 1px solid #eee;  
+      }
+      #footer {
+        margin: auto;
+        padding: 20px;
+        width: 700px;
+        font-size: 10px;
+        text-align: center;
+      }
+      #scoreBox {
+        font-size: 11px;
+        text-align: center;
+        padding: 15px 5px 0 5px;
+        border: 1px solid #bbb;
+        width: 100%;
+        margin: 0 0 10px 0;        
+      }
+      #scoreBox span {
+        display: inline-block;
+        border: 1px solid grey;
+        padding: 2px;
+        width: 20px;
+      }
+      span#finalscore {
+        font-size: 15px;
+        width: 50px;
+        margin: 2px;
+      }
+      #textToSay {
+        padding: 5px;
+        border: 1px solid #bbb;
+        width: 100%;
+        font-size: 50px;          
+      }
+      #speakInput {
+        text-align: center;
+        width: 100%;        
+      }
+      #speakInput p {
+        margin: 10px 0 0 0;
+      }
+      #input {
+        border: 0px solid black;
+        width: 40px;
+        font-size: 50px;  
+      }
+      #resultBox {
+        display: none;  
+      }
+      #resultBox p {
+        font-size: 24px;
+        margin: 0;
+      }
+      #result {
+        padding: 10px;
+        border: 1px solid #bbb;
+        font-size: 50px;  
+      }
+    
+    </style> 
+    </head> 
+ 
+    <body> 
+        <iframe id="audioIframe" style="display:none" src=""></iframe>
+        
+        <div id="header"> 
+          <h1><strong>Say what?!</strong> - An HTML speech game</h1> 
+          <div id="about">Read aloud the title of a <a href="http://en.wikipedia.org/wiki/Special:Random" target="_blank">random article</a> from the Wikipedia and see how good you're are (or how good Google is at speech recognition ;)<br/> <strong>Note:</strong> The game uses the newly enabled speech atribute for input elements that was recently added to Chrome/Chromium it should be available soon on Chrome 7 but for now you will need to get a <a href="http://dev.chromium.org/getting-involved/dev-channel" target="_blank">Dev channel version</a> (or <a href="http://build.chromium.org/buildbot/snapshots/" target="_blank">newer</a>) in order to play.</div> 
+        </div> 
+        <div id="content"> 
+            
+            <div id="scoreBox"> 
+              Times Played: <span id="total"></span> 
+              Poor: <span id="score0_24"></span> 
+              Normal: <span id="score25_49"></span> 
+              Cool: <span id="score50_74"></span> 
+              Great: <span id="score74_99"></span> 
+              Perfect: <span id="score100"></span> 
+              Skipped: <span id="skipped"></span> 
+              Hints: <span id="hints"></span> 
+              
+              <div id="finalscoreBox"> 
+                <strong>Total: <span id="finalscore"></span> points</strong> 
+              </div> 
+              <div> 
+                  <small><a href="#" onclick="resetScores(); return false;">Reset scores</a></small> 
+              </div> 
+            </div> 
+            
+            <div id="textToSay">...</div> 
+            
+            <div> 
+              <small>Need help? <a href="#" onclick="getHint()">try an audio hint</a> (-1 point)</small> 
+              <small style="float:right">Don't like the phrase? <a href="#" onclick="window.location.reload()">Skip it!</a> (-2 points)</small> 
+            </div>
+                        
+            <div id="speakInput"> 
+                <p>click the mic to speak:</p> 
+                <input id="input" speech onchange="handleSpeechInput(this.value);" x-webkit-speech onwebkitspeechchange="handleSpeechInput(this.value);"> 
+            </div> 
+ 
+            <div id="resultBox"> 
+                <div id="result"> 
+                  
+                </div> 
+                <small>Click on the mic to try again or <a href="#" onclick="window.location.reload(); return false;">get next phrase</a></small> 
+            </div> 
+            
+        </div> 
+        <div id="footer"> 
+            An HTML game by <a href="http://www.manekinekoninja.com/" target="_blank">Pau Tom&agrave;s</a> 
+        </div> 
+    
+    <script> 
+      
+      var lang = "en";
+      
+      var textToSay = document.getElementById("textToSay");
+      var result = document.getElementById("result");
+      var input = document.getElementById("input");
+      var audioIframe = document.getElementById("audioIframe");
+      
+      var numOfHints = 0;
+      
+      try {
+        var score = JSON.parse(localStorage['score']);
+      }catch(e){
+        var score = [];
+      }  
+      var countSkip = true;
+     
+      input.addEventListener('keypress', function(event) { 
+        alert('Don\'t type!!'); 
+        input.value="";
+        input.blur();
+        event.preventDefault();
+      })
+ 
+      window.addEventListener('beforeunload', function(event) {
+         if (countSkip) {
+            return "Refreshing the page will skip the current phrase. Do you want to refresh?";
+         }
+      })
+      window.addEventListener('unload', function(event) { 
+        if (countSkip) {
+            skipPhrase();
+            event.preventDefault();
+        }
+      })
+ 
+      var init = function(data) {
+        var text = data.query.random[0].title;  
+        text = text.replace(/\(.*\)|[^\wáàäéèëíìïóòöúùü0-9']/g, " ");
+        textToSay.innerHTML = text;
+        renderScore();
+      }
+      
+      var handleSpeechInput = function(text) {
+          var diff = levenshtein(textToSay.innerText.toLowerCase(), text.toLowerCase());
+          var sizeOfString = textToSay.innerText.length;
+          
+          console.log(diff);
+          console.log(sizeOfString);
+          
+          var resultValue = (sizeOfString - diff) * 100 / sizeOfString;
+          
+          var resultText = "...";
+          if (resultValue >= 0 && resultValue <= 25)
+            resultText = 'Booooh!';
+          if (resultValue > 25 && resultValue <= 50)
+            resultText = 'Ummmmmmfff!';
+          if (resultValue > 50 && resultValue <= 75)
+            resultText = 'Cool!';
+          if (resultValue > 75 && resultValue < 100)
+            resultText = 'Great!!';
+          if (resultValue == 100)
+            resultText = 'Perfect!!!!';
+                    
+          result.innerHTML = '<p><small>You said: <em>"' + text + '"</em></small></p>'
+                           + '<div>' + resultText + ' (' + Math.round(resultValue) + '%)</div>';
+          
+          document.getElementById("resultBox").style.display="block";
+          
+          score.push({
+            phrase : textToSay.innerText,
+            score : resultValue,
+            hints : numOfHints
+          })
+          
+          countSkip = false;
+          saveScore();
+          renderScore();
+      }
+     
+      var resetScores = function() {
+        if (confirm("Do you want to reset your scores?")) { 
+            score = [];
+            saveScore();
+            renderScore();
+        }
+      }
+     
+      var skipPhrase = function() {
+          score.push({
+            phrase : textToSay.innerText,
+            score : -1,
+            hints : numOfHints,
+            skipped : true
+          })
+          saveScore();
+          countSkip = false;
+      }
+      
+      var saveScore = function() {
+        localStorage['score'] = JSON.stringify(score);
+      }
+      
+      var getHint = function() {
+        numOfHints++;
+        audioIframe.src = "http://translate.google.com/translate_tts?q="+escape(textToSay.innerHTML)+"&tl="+lang+"&prev=input";  
+      }
+      
+      var renderScore = function() {
+        console.log(localStorage['score']);
+        
+        var total = 0, 
+            skipped = 0,
+            hints = 0,
+            score0_24 = 0, 
+            score25_49 = 0, 
+            score50_74 = 0, 
+            score74_99 = 0, 
+            score100 = 0,
+            finalscore = 0;
+        
+        for (i in score) {
+            var resultValue = score[i];
+ 
+            total++;
+ 
+            if (resultValue.skipped) {
+                skipped++;
+                finalscore-=2;
+            } else {
+                
+                if (resultValue.score >= 0 && resultValue.score <= 25) {
+                    score0_24++;
+                }
+                if (resultValue.score > 25 && resultValue.score <= 50) {
+                    score25_49++;
+                    finalscore += 1;
+                }
+                if (resultValue.score > 50 && resultValue.score <= 75) {
+                    score50_74++;
+                    finalscore += 2;
+                }
+                if (resultValue.score > 75 && resultValue.score < 100) {
+                    score74_99++;
+                    finalscore += 3;
+                }
+                if (resultValue.score == 100) {
+                    score100++;
+                    finalscore += 5;
+                }
+            }
+            if (resultValue.hints > 0) {
+              finalscore -= resultValue.hints;
+              hints += resultValue.hints;
+            }
+        }
+ 
+        document.getElementById("total").innerHTML = total;
+        document.getElementById("skipped").innerHTML = skipped;
+        document.getElementById("hints").innerHTML = hints;
+        document.getElementById("score0_24").innerHTML = score0_24;
+        document.getElementById("score25_49").innerHTML = score25_49;
+        document.getElementById("score50_74").innerHTML = score50_74;
+        document.getElementById("score74_99").innerHTML = score74_99;
+        document.getElementById("score100").innerHTML = score100;
+        document.getElementById("finalscore").innerHTML = finalscore;
+      
+      }
+      
+      var levenshtein = function(s1, s2) {
+              // http://kevin.vanzonneveld.net
+              // +            original by: Carlos R. L. Rodrigues (http://www.jsfromhell.com)
+              // +            bugfixed by: Onno Marsman
+              // +             revised by: Andrea Giammarchi (http://webreflection.blogspot.com)
+              // + reimplemented by: Brett Zamir (http://brett-zamir.me)
+              // + reimplemented by: Alexander M Beedie
+              // *                example 1: levenshtein('Kevin van Zonneveld', 'Kevin van Sommeveld');
+              // *                returns 1: 3
+        
+            if (s1 == s2) {
+                return 0;
+            }
+        
+            var s1_len = s1.length;
+            var s2_len = s2.length;
+            if (s1_len === 0) {
+                return s2_len;
+            }
+            if (s2_len === 0) {
+                return s1_len;
+            }
+        
+            // BEGIN STATIC
+            var split = false;
+            try{
+                split=!('0')[0];
+            } catch (e){
+                split=true; // Earlier IE may not support access by string index
+            }
+            // END STATIC
+            if (split){
+                s1 = s1.split('');
+                s2 = s2.split('');
+            }
+        
+            var v0 = new Array(s1_len+1);
+            var v1 = new Array(s1_len+1);
+        
+            var s1_idx=0, s2_idx=0, cost=0;
+            for (s1_idx=0; s1_idx<s1_len+1; s1_idx++) {
+                v0[s1_idx] = s1_idx;
+            }
+            var char_s1='', char_s2='';
+            for (s2_idx=1; s2_idx<=s2_len; s2_idx++) {
+                v1[0] = s2_idx;
+                char_s2 = s2[s2_idx - 1];
+        
+                for (s1_idx=0; s1_idx<s1_len;s1_idx++) {
+                    char_s1 = s1[s1_idx];
+                    cost = (char_s1 == char_s2) ? 0 : 1;
+                    var m_min = v0[s1_idx+1] + 1;
+                    var b = v1[s1_idx] + 1;
+                    var c = v0[s1_idx] + cost;
+                    if (b < m_min) {
+                        m_min = b; }
+                    if (c < m_min) {
+                        m_min = c; }
+                    v1[s1_idx+1] = m_min;
+                }
+                var v_tmp = v0;
+                v0 = v1;
+                v1 = v_tmp;
+            }
+            return v0[s1_len];
+        }
+    </script> 
+    <script src="http://en.wikipedia.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=1&format=json&callback=init"></script> 
+ 
+    <script type="text/javascript"> 
+      var _gaq = _gaq || [];
+      _gaq.push(['_setAccount', 'UA-18759842-1']);
+      _gaq.push(['_setDomainName', '.nekojs.com']);
+      _gaq.push(['_trackPageview']);
+    
+      (function() {
+        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+      })();
+    </script>    
+    
+    </body> 
+ 
+</html>
