@@ -182,8 +182,7 @@
       })
  
       var init = function(data) {
-        var text = data.query.random[0].title;  
-        text = text.replace(/\(.*\)|[^\wáàäéèëíìïóòöúùü0-9']/g, " ");
+        var text = Math.floor(Math.random()*1001);
         textToSay.innerHTML = text;
         renderScore();
       }
@@ -381,9 +380,9 @@
             return v0[s1_len];
         }
     </script> 
-    <script src="http://en.wikipedia.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=1&format=json&callback=init"></script> 
+    <!--script src="http://en.wikipedia.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=1&format=json&callback=init"></script--> 
  
-    <script type="text/javascript"> 
+    <!--script type="text/javascript"> 
       var _gaq = _gaq || [];
       _gaq.push(['_setAccount', 'UA-18759842-1']);
       _gaq.push(['_setDomainName', '.nekojs.com']);
@@ -394,7 +393,7 @@
         ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
         var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
       })();
-    </script>    
+    </script-->    
     
     </body> 
  
